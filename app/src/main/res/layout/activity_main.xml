@@ -1,44 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="20dp"
-    android:gravity="center_horizontal">
+    android:padding="24dp">
 
+    <!-- Tiêu đề -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Speech Translator"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="24dp"/>
+
+    <!-- Spinner chọn ngôn ngữ đích -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Select Target Language:"
-        android:textSize="16sp" />
+        android:text="Dịch sang:"
+        android:textSize="16sp"/>
 
     <Spinner
-        android:id="@+id/languageSpinner"
+        android:id="@+id/spinnerLanguage"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp" />
+        android:layout_marginBottom="24dp"/>
 
+    <!-- Nút ghi âm -->
     <Button
-        android:id="@+id/btnRecord"
+        android:id="@+id/btnSpeak"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:text="Start Recording" />
+        android:text="🎤 Nhấn để nói"
+        android:textSize="18sp"
+        android:layout_marginBottom="24dp"/>
+
+    <!-- Hiển thị text gốc -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Văn bản gốc:"
+        android:textStyle="bold"/>
 
     <TextView
         android:id="@+id/tvOriginal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="30dp"
-        android:text="Original Text..."
-        android:textStyle="italic" />
+        android:text="(chưa có)"
+        android:textSize="16sp"
+        android:padding="12dp"
+        android:background="#EEEEEE"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- Hiển thị bản dịch -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Bản dịch:"
+        android:textStyle="bold"/>
 
     <TextView
         android:id="@+id/tvTranslated"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:text="Translated Text..."
-        android:textColor="@android:color/holo_blue_dark"
-        android:textSize="18sp"
-        android:textStyle="bold" />
+        android:text="(chưa có)"
+        android:textSize="16sp"
+        android:padding="12dp"
+        android:background="#EEEEEE"/>
+
 </LinearLayout>

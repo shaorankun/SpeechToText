@@ -1,71 +1,154 @@
-package com.example.speechtotext;
+package com.example.speechtotext // đổi thành package name của bạn
 
-import android.content.Intent;
-import android.os.Bundle;
-import android.speech.RecognizerIntent;
-import android.widget.*;
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
-import com.google.mlkit.nl.translate.*;
-import java.util.ArrayList;
-import java.util.Locale;
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.widget.*
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import okhttp3.*
+import org.json.JSONObject
+import java.io.IOException
+import android.Manifest
 
-public class MainActivity extends AppCompatActivity {
-    private TextView tvOriginal, tvTranslated;
-    private Button btnRecord;
-    private Spinner languageSpinner;
-    private Translator translator;
+class MainActivity : AppCompatActivity() {
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+    // Khai báo các biến tương ứng với widget trong XML
+    private lateinit var btnSpeak: Button
+    private lateinit var tvOriginal: TextView
+    private lateinit var tvTranslated: TextView
+    private lateinit var spinnerLanguage: Spinner
 
-        tvOriginal = findViewById(R.id.tvOriginal);
-        tvTranslated = findViewById(R.id.tvTranslated);
-        btnRecord = findViewById(R.id.btnRecord);
-        languageSpinner = findViewById(R.id.languageSpinner);
+    // Mã request permission (đặt số bất kỳ, dùng để nhận kết quả xin quyền)
+    private val REQUEST_RECORD_AUDIO = 101
+    // Mã request speech (dùng để nhận kết quả từ màn hình speech recognition)
+    private val REQUEST_SPEECH = 102
 
-        // Populate Spinner [cite: 152]
-        String[] languages = {"Spanish", "French", "German"};
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, languages);
-        languageSpinner.setAdapter(adapter);
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-        btnRecord.setOnClickListener(v -> startSpeechToText());
-    }
+        // Kết nối biến với widget trong XML thông qua ID
+        btnSpeak = findViewById(R.id.btnSpeak)
+        tvOriginal = findViewById(R.id.tvOriginal)
+        tvTranslated = findViewById(R.id.tvTranslated)
+        spinnerLanguage = findViewById(R.id.spinnerLanguage)
 
-    private void startSpeechToText() {
-        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
-        startActivityForResult(intent, 100);
-    }
+        // Gắn danh sách ngôn ngữ vào Spinner
+        val adapter = ArrayAdapter.createFromResource(
+                this,
+                R.array.languages,          // array tên đẹp
+                android.R.layout.simple_spinner_item
+        )
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerLanguage.adapter = adapter
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == 100 && resultCode == RESULT_OK && data != null) {
-            ArrayList<String> result = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
-            String spokenText = result.get(0);
-            tvOriginal.setText(spokenText);
-            prepareAndTranslate(spokenText);
+        // Xử lý khi nhấn nút ghi âm
+        btnSpeak.setOnClickListener {
+            checkPermissionAndSpeak()
         }
     }
 
-    private void prepareAndTranslate(String text) {
-        // Build translation options [cite: 721]
-        TranslatorOptions options = new TranslatorOptions.Builder()
-                .setSourceLanguage(TranslateLanguage.ENGLISH)
-                .setTargetLanguage(TranslateLanguage.SPANISH) // Simplified for demo
-                .build();
+    // Kiểm tra permission trước khi ghi âm
+    // Bản chất: Android 6+ yêu cầu xin quyền lúc runtime, không chỉ trong manifest
+    private fun checkPermissionAndSpeak() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            // Chưa có quyền → xin quyền, kết quả trả về onRequestPermissionsResult
+            ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.RECORD_AUDIO),
+                    REQUEST_RECORD_AUDIO
+            )
+        } else {
+            // Đã có quyền → bắt đầu nghe
+            startSpeechRecognition()
+        }
+    }
 
-        translator = Translation.getClient(options);
+    // Kết quả xin quyền trả về đây
+    override fun onRequestPermissionsResult(
+            requestCode: Int, permissions: Array<String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_RECORD_AUDIO &&
+                grantResults.isNotEmpty() &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startSpeechRecognition()
+        } else {
+            Toast.makeText(this, "Cần quyền microphone!", Toast.LENGTH_SHORT).show()
+        }
+    }
 
-        translator.downloadModelIfNeeded()
-                .addOnSuccessListener(unused -> {
-                    translator.translate(text)
-                            .addOnSuccessListener(translatedText -> tvTranslated.setText(translatedText))
-                            .addOnFailureListener(e -> tvTranslated.setText("Error: " + e.getMessage()));
-                });
+    // Bắt đầu nhận diện giọng nói
+    // Bản chất: Android có sẵn SpeechRecognizer, ta dùng Intent để gọi nó
+    // Giống như "nhờ" app khác làm việc rồi trả kết quả về
+    private fun startSpeechRecognition() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN") // nhận tiếng Việt
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Hãy nói gì đó...")
+        }
+        startActivityForResult(intent, REQUEST_SPEECH)
+    }
+
+    // Nhận kết quả từ Speech Recognition trả về
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_SPEECH && resultCode == RESULT_OK) {
+            val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            val spokenText = results?.get(0) ?: return  // lấy kết quả đầu tiên (độ chính xác cao nhất)
+
+                    tvOriginal.text = spokenText  // hiển thị text gốc
+            translateText(spokenText)     // gọi API dịch
+        }
+    }
+
+    // Gọi API dịch (dùng LibreTranslate public instance)
+    // Bản chất: gửi HTTP POST request với text và ngôn ngữ đích, nhận về bản dịch
+    private fun translateText(text: String) {
+        val langCodes = resources.getStringArray(R.array.language_codes)
+        val targetLang = langCodes[spinnerLanguage.selectedItemPosition]
+
+        tvTranslated.text = "Đang dịch..."
+
+        val client = OkHttpClient()
+
+        // MyMemory dùng GET, encode text để tránh lỗi ký tự đặc biệt
+        val encodedText = java.net.URLEncoder.encode(text, "UTF-8")
+        val url = "https://api.mymemory.translated.net/get?q=$encodedText&langpair=vi|$targetLang"
+
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                runOnUiThread {
+                    tvTranslated.text = "Lỗi kết nối: ${e.message}"
+                }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body?.string()
+                runOnUiThread {
+                    try {
+                        // MyMemory trả về: {"responseData": {"translatedText": "..."}, ...}
+                        val json = JSONObject(body ?: "")
+                        val translatedText = json
+                            .getJSONObject("responseData")
+                            .getString("translatedText")
+                        tvTranslated.text = translatedText
+                    } catch (e: Exception) {
+                        tvTranslated.text = "Lỗi: ${e.message}"
+                    }
+                }
+            }
+        })
     }
 }

@@ -48,4 +48,5 @@ dependencies {
     // Standard Android Speech Recognition is built-in,
 // but ML Kit requires the Google Play Services
     implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
